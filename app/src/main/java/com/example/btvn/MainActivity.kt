@@ -13,11 +13,10 @@ import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 
 class MainActivity : AppCompatActivity() {
     lateinit var studentAdapter: StudentAdapter
+    lateinit var dbHelper: StudentDatabaseHelper
     private  var studentList= mutableListOf<StudentModel>()
 
     private val formLauncher = registerForActivityResult(
@@ -32,15 +31,21 @@ class MainActivity : AppCompatActivity() {
                 val phone = data.getStringExtra("phone") ?: ""
                 val isEditMode = data.getBooleanExtra("edit_mode", false)
                 val position = data.getIntExtra("position", -1)
+                val student = StudentModel(name, id, email, phone)
 
                 if (isEditMode && position != -1) {
 
-                    studentList[position] = StudentModel(name, id, email, phone)
+                    dbHelper.updateStudent(student)
+                    studentList[position] = student
                     Toast.makeText(this, "Đã cập nhật sinh viên", Toast.LENGTH_SHORT).show()
                 } else {
+                    if (dbHelper.addStudent(student)) {
+                        studentList.add(student)
+                        Toast.makeText(this, "Đã thêm sinh viên mới", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this, "Thêm thất bại", Toast.LENGTH_SHORT).show()
+                    }
 
-                    studentList.add(StudentModel(name, id, email, phone))
-                    Toast.makeText(this, "Đã thêm sinh viên mới", Toast.LENGTH_SHORT).show()
                 }
 
                 studentAdapter.notifyDataSetChanged()
@@ -53,7 +58,9 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
 
-        studentList.add(StudentModel("Canh","20225168","nguyentuancanh305@gmail.com","0397717907"))
+        dbHelper = StudentDatabaseHelper(this)
+        dbHelper.readableDatabase // Mở DB để đảm bảo hiển thị trong Inspector
+        studentList = dbHelper.getAllStudents() // lấy danh sách từ SQLite
         studentAdapter = StudentAdapter(this, studentList)
         val listView = findViewById<ListView>(R.id.lvSV)
         listView.adapter = studentAdapter
@@ -93,7 +100,7 @@ class MainActivity : AppCompatActivity() {
 
                 builder.setPositiveButton("Xóa") { dialog, _ ->
 
-                    studentList.removeAt(position)
+                    dbHelper.deleteStudent(selectedStudent.id)
                     studentAdapter.notifyDataSetChanged()
                     Toast.makeText(this, "Đã xóa ${selectedStudent.name}", Toast.LENGTH_SHORT).show()
                     dialog.dismiss()
