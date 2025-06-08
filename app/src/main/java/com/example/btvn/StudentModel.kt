@@ -1,7 +1,12 @@
 package com.example.btvn
-data class StudentModel (
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "students")
+data class StudentModel(
+    @PrimaryKey val id: String,
     val name: String,
-    val id: String,
     val email: String,
     val SĐT: String
 )

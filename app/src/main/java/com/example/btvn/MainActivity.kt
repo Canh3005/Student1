@@ -13,10 +13,12 @@ import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
     lateinit var studentAdapter: StudentAdapter
-    lateinit var dbHelper: StudentDatabaseHelper
+    lateinit var studentDao: StudentDao
     private  var studentList= mutableListOf<StudentModel>()
 
     private val formLauncher = registerForActivityResult(
@@ -33,39 +35,41 @@ class MainActivity : AppCompatActivity() {
                 val position = data.getIntExtra("position", -1)
                 val student = StudentModel(name, id, email, phone)
 
+                lifecycleScope.launch{
                 if (isEditMode && position != -1) {
 
-                    dbHelper.updateStudent(student)
+                    studentDao.updateStudent(student)
                     studentList[position] = student
-                    Toast.makeText(this, "Đã cập nhật sinh viên", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this@MainActivity, "Đã cập nhật sinh viên", Toast.LENGTH_SHORT).show()
                 } else {
-                    if (dbHelper.addStudent(student)) {
+                    studentDao.addStudent(student)
                         studentList.add(student)
-                        Toast.makeText(this, "Đã thêm sinh viên mới", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(this, "Thêm thất bại", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this@MainActivity, "Đã thêm sinh viên mới", Toast.LENGTH_SHORT).show()
                     }
 
                 }
 
                 studentAdapter.notifyDataSetChanged()
             }
+            }
         }
-    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
 
-        dbHelper = StudentDatabaseHelper(this)
-        dbHelper.readableDatabase // Mở DB để đảm bảo hiển thị trong Inspector
-        studentList = dbHelper.getAllStudents() // lấy danh sách từ SQLite
-        studentAdapter = StudentAdapter(this, studentList)
-        val listView = findViewById<ListView>(R.id.lvSV)
-        listView.adapter = studentAdapter
-        registerForContextMenu(listView)
+        val database = StudentDatabase.getDatabase(this)
+        studentDao = database.studentDao()
 
+        lifecycleScope.launch {
+            studentList = studentDao.getAllStudents().toMutableList()
+            studentAdapter = StudentAdapter(this@MainActivity, studentList)
+            val listView = findViewById<ListView>(R.id.lvSV)
+            listView.adapter = studentAdapter
+            registerForContextMenu(listView)
+        }
 
         val toolbar = findViewById<androidx.appcompat.widget.Toolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
@@ -100,9 +104,12 @@ class MainActivity : AppCompatActivity() {
 
                 builder.setPositiveButton("Xóa") { dialog, _ ->
 
-                    dbHelper.deleteStudent(selectedStudent.id)
-                    studentAdapter.notifyDataSetChanged()
-                    Toast.makeText(this, "Đã xóa ${selectedStudent.name}", Toast.LENGTH_SHORT).show()
+                    lifecycleScope.launch {
+                        studentDao.deleteStudent(selectedStudent) // Truyền đúng kiểu dữ liệu
+                        studentList.removeAt(position) // Xóa khỏi danh sách hiển thị
+                        studentAdapter.notifyDataSetChanged()
+                        Toast.makeText(this@MainActivity, "Đã xóa ${selectedStudent.name}", Toast.LENGTH_SHORT).show()
+                    }
                     dialog.dismiss()
                 }
 
